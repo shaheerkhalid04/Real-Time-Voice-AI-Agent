@@ -1,0 +1,37 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Vercel
+.vercel/
+
+# Recordings and scratch audio
+recordings/
+*.wav
+*.mp3
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+.vercel
+.env*
+
+# ...but the template belongs in the repo.
+!.env.example
