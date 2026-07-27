@@ -394,6 +394,14 @@
     if (state.phase === 'recording' || el.micBtn.disabled) return;
     stopPlayback();
 
+    // Checked before touching the microphone: asking for permission and then
+    // refusing to use it would be a rude way to report a server misconfig.
+    if (!state.caps.asr) {
+      banner('Speech-to-text is not configured on the server: set GROQ_API_KEY. Typing still works.');
+      toast('Transcription is not configured', 'bad');
+      return;
+    }
+
     try {
       await ensureMic();
     } catch (error) {
@@ -402,11 +410,6 @@
         ? 'Microphone access was blocked. Allow it in your browser’s site settings, then reload.'
         : 'No microphone was found. You can still type your message below.');
       toast('Microphone unavailable', 'bad');
-      return;
-    }
-
-    if (!state.caps.asr) {
-      banner('Speech-to-text is not configured on the server: set GROQ_API_KEY. Typing still works.');
       return;
     }
 
