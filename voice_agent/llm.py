@@ -8,6 +8,7 @@ what happened rather than just the final sentence.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -16,9 +17,31 @@ import httpx
 from .config import GROQ_BASE_URL, Settings, get_settings
 from .tools import TOOL_SCHEMAS, run_tool
 
+# Llama intermittently emits a tool call in its old pseudo-XML text format
+# instead of structured JSON, and Groq rejects the generation rather than
+# parsing it. The arguments are usually correct, so the call is recoverable:
+#     <function=get_current_time({"utc_offset_hours": 5})</function>
+_TEXT_TOOL_CALL = re.compile(
+    r"<function=([A-Za-z_][A-Za-z0-9_]*)\s*\(?\s*(\{.*?\})\s*\)?\s*(?:</function>|$)",
+    re.DOTALL,
+)
+
+_TOOL_NAMES = {schema["function"]["name"] for schema in TOOL_SCHEMAS}
+
+# How many times to resample when the model produces an unparseable call.
+_FORMAT_RETRIES = 2
+
 
 class LLMError(RuntimeError):
     """The language model call failed."""
+
+
+class ToolCallFormatError(LLMError):
+    """Groq refused the model's tool call because it was malformed."""
+
+    def __init__(self, message: str, failed_generation: str = "") -> None:
+        super().__init__(message)
+        self.failed_generation = failed_generation
 
 
 @dataclass
@@ -66,7 +89,9 @@ async def respond(
             # On the final round the tools are withheld, which forces the model
             # to answer with words instead of asking for yet another call.
             offer_tools = use_tools and round_index < settings.max_tool_rounds
-            message = await _complete(client, history, api_key, settings, offer_tools)
+            message = await _complete_resiliently(
+                client, history, api_key, settings, offer_tools
+            )
             history.append(message)
 
             tool_calls = message.get("tool_calls") or []
@@ -94,6 +119,63 @@ async def respond(
         tools=invocations,
         messages=history,
     )
+
+
+async def _complete_resiliently(
+    client: httpx.AsyncClient,
+    history: list[dict[str, Any]],
+    api_key: str,
+    settings: Settings,
+    offer_tools: bool,
+) -> dict[str, Any]:
+    """Complete a turn, surviving the model's malformed tool calls.
+
+    Resampling usually fixes it. If it does not, the botched text still names
+    the tool and its arguments, so the call can be rebuilt rather than lost.
+    As a last resort the turn is answered without tools, because a plain
+    answer beats an error message.
+    """
+    last_error: ToolCallFormatError | None = None
+
+    for _ in range(_FORMAT_RETRIES + 1):
+        try:
+            return await _complete(client, history, api_key, settings, offer_tools)
+        except ToolCallFormatError as exc:
+            last_error = exc
+
+    if last_error is not None:
+        salvaged = _salvage_tool_call(last_error.failed_generation)
+        if salvaged is not None:
+            return salvaged
+
+    return await _complete(client, history, api_key, settings, offer_tools=False)
+
+
+def _salvage_tool_call(failed_generation: str) -> dict[str, Any] | None:
+    """Rebuild a proper tool-call message from the model's text-format call."""
+    match = _TEXT_TOOL_CALL.search(failed_generation or "")
+    if match is None:
+        return None
+
+    name, raw_arguments = match.group(1), match.group(2)
+    if name not in _TOOL_NAMES:
+        return None
+
+    try:
+        json.loads(raw_arguments)
+    except json.JSONDecodeError:
+        return None
+
+    return {
+        "role": "assistant",
+        "tool_calls": [
+            {
+                "id": f"salvaged_{name}",
+                "type": "function",
+                "function": {"name": name, "arguments": raw_arguments},
+            }
+        ],
+    }
 
 
 async def _complete(
@@ -126,6 +208,9 @@ async def _complete(
         raise LLMError(f"Could not reach the language model: {exc}") from exc
 
     if response.status_code != 200:
+        botched = _failed_generation(response)
+        if botched is not None:
+            raise ToolCallFormatError(_describe_error(response), botched)
         raise LLMError(_describe_error(response))
 
     try:
@@ -164,13 +249,29 @@ def _with_system_prompt(
     return [{"role": "system", "content": system_prompt}, *history]
 
 
+def _failed_generation(response: httpx.Response) -> str | None:
+    """Return the model's rejected output, if this was a tool-format failure."""
+    try:
+        error = response.json().get("error", {})
+    except Exception:
+        return None
+    botched = error.get("failed_generation")
+    return str(botched) if botched else None
+
+
 def _describe_error(response: httpx.Response) -> str:
     if response.status_code == 401:
         return "Groq rejected the API key. Check GROQ_API_KEY."
     if response.status_code == 429:
         return "Groq rate limit reached. Wait a moment and try again."
     try:
-        message = response.json().get("error", {}).get("message")
+        error = response.json().get("error", {})
+        message = error.get("message")
+        # Groq puts the model's malformed output here when it rejects a tool
+        # call. Without it there is no way to tell which tool went wrong.
+        botched = error.get("failed_generation")
+        if message and botched:
+            return f"The language model failed: {message} | generated: {str(botched)[:400]}"
         if message:
             return f"The language model failed: {message}"
     except Exception:
