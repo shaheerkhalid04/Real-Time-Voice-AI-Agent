@@ -24,7 +24,9 @@ except Exception:  # pragma: no cover
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 ELEVENLABS_BASE_URL = "https://api.elevenlabs.io/v1"
 
-# Default voice: "Rachel" from the ElevenLabs public voice library.
+# "Rachel" from the ElevenLabs public voice library. Free accounts cannot use
+# library voices over the API, so this is only a last resort — tts.py replaces
+# it with the first voice the account actually owns.
 DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
 
 DEFAULT_SYSTEM_PROMPT = (

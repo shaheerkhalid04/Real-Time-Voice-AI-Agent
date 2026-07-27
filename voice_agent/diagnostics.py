@@ -60,8 +60,10 @@ async def verify_keys(settings: Settings) -> dict[str, str]:
             {"Authorization": f"Bearer {settings.groq_api_key}"},
             settings.has_asr,
         ),
+        # /voices rather than /user: it is the call the app itself makes, and
+        # a key scoped to speech only is refused by /user while working fine.
         "elevenlabs": await _verify(
-            f"{ELEVENLABS_BASE_URL}/user",
+            f"{ELEVENLABS_BASE_URL}/voices",
             {"xi-api-key": settings.elevenlabs_api_key},
             settings.has_tts,
         ),

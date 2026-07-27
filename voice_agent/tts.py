@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import httpx
 
-from .config import ELEVENLABS_BASE_URL, Settings, get_settings
+from .config import DEFAULT_VOICE_ID, ELEVENLABS_BASE_URL, Settings, get_settings
 
 # mp3 for the browser (it decodes it natively); signed 16-bit PCM at 24 kHz for
 # the CLI, which pipes straight into the sound card without an mp3 decoder.
@@ -17,9 +17,31 @@ FORMAT_PCM = "pcm_24000"
 
 MAX_CHARS = 2500
 
+# The built-in default is a shared library voice, which free accounts cannot
+# use over the API. Rather than fail, resolve to the first voice the account
+# actually owns and remember it for the life of the process.
+_resolved_default: str | None = None
+
 
 class TTSError(RuntimeError):
     """Speech synthesis failed."""
+
+
+async def resolve_voice(requested: str | None, settings: Settings) -> str:
+    """Pick the voice to speak with, preferring one the account can use."""
+    global _resolved_default
+
+    if requested:
+        return requested
+    # An explicit ELEVENLABS_VOICE_ID is the operator's choice; respect it.
+    if settings.voice_id and settings.voice_id != DEFAULT_VOICE_ID:
+        return settings.voice_id
+    if _resolved_default:
+        return _resolved_default
+
+    voices = await list_voices(settings)
+    _resolved_default = voices[0]["id"] if voices else settings.voice_id
+    return _resolved_default
 
 
 async def synthesize(
@@ -42,7 +64,7 @@ async def synthesize(
     if len(text) > MAX_CHARS:
         text = text[:MAX_CHARS].rsplit(" ", 1)[0] + "..."
 
-    voice = voice_id or settings.voice_id
+    voice = await resolve_voice(voice_id, settings)
     payload = {
         "text": text,
         "model_id": settings.tts_model,

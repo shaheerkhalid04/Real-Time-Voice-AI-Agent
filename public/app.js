@@ -855,8 +855,12 @@
         : voice.name;
       el.voiceSelect.appendChild(new Option(label, voice.id));
     });
-    el.voiceSelect.value = state.settings.voiceId || defaultVoice || voices[0].id;
+    // Assigning an id the account does not have leaves the select empty, so
+    // fall back to a voice that is definitely on the list.
+    el.voiceSelect.value = state.settings.voiceId || defaultVoice || '';
+    if (!el.voiceSelect.value) el.voiceSelect.value = voices[0].id;
     state.settings.voiceId = el.voiceSelect.value;
+    saveSettings();
   }
 
   function applySettings() {
