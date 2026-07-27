@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
-from voice_agent import asr, llm, tts
+from voice_agent import asr, diagnostics, llm, tts
 from voice_agent.config import ConfigError, get_settings
 
 app = FastAPI(
@@ -89,9 +89,13 @@ class ConverseRequest(BaseModel):
 # --------------------------------------------------------------------------
 
 @router.get("/health")
-async def health() -> dict[str, Any]:
-    """What the server can actually do — the UI adapts its controls to this."""
-    return {
+async def health(verify: bool = False) -> dict[str, Any]:
+    """What the server can actually do — the UI adapts its controls to this.
+
+    `?verify=1` additionally asks each provider whether it accepts its key,
+    which is the difference between "a key is set" and "a key works".
+    """
+    payload: dict[str, Any] = {
         "status": "ok",
         "asr": settings.has_asr,
         "llm": settings.has_llm,
@@ -103,7 +107,11 @@ async def health() -> dict[str, Any]:
         },
         "default_voice": settings.voice_id,
         "tools": [schema["function"]["name"] for schema in llm.TOOL_SCHEMAS],
+        "keys": diagnostics.key_shapes(settings),
     }
+    if verify:
+        payload["verified"] = await diagnostics.verify_keys(settings)
+    return payload
 
 
 @router.get("/voices")

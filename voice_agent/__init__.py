@@ -6,6 +6,7 @@ Three stages wired together:
 
 from .config import Settings, get_settings
 from .asr import transcribe
+from .diagnostics import key_shapes, verify_keys
 from .llm import respond
 from .tts import synthesize, list_voices
 from .tools import TOOL_SCHEMAS, run_tool
@@ -16,6 +17,8 @@ __all__ = [
     "Settings",
     "get_settings",
     "transcribe",
+    "key_shapes",
+    "verify_keys",
     "respond",
     "synthesize",
     "list_voices",
