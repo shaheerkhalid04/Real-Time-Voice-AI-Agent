@@ -148,7 +148,22 @@ async def _complete_resiliently(
         if salvaged is not None:
             return salvaged
 
-    return await _complete(client, history, api_key, settings, offer_tools=False)
+    # Last resort. Without the nudge the model tends to answer "let me look
+    # that up for you" — a promise it has no way to keep, since this is the
+    # reply the user actually hears.
+    nudged = [
+        *history,
+        {
+            "role": "system",
+            "content": (
+                "Your tools are unavailable for this reply. Answer directly "
+                "from what you already know, or say plainly that you cannot "
+                "check right now. Never say you are about to look something "
+                "up, and never claim you are checking."
+            ),
+        },
+    ]
+    return await _complete(client, nudged, api_key, settings, offer_tools=False)
 
 
 def _salvage_tool_call(failed_generation: str) -> dict[str, Any] | None:
