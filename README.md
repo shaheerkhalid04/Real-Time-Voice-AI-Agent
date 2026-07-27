@@ -133,7 +133,7 @@ handler to `_REGISTRY`, both in `voice_agent/tools.py`.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/api/health` | GET | Which stages are configured, and which models. |
+| `/api/health` | GET | Which stages are configured, and which models. Add `?verify=1` to ask each provider whether it actually accepts its key. |
 | `/api/transcribe` | POST | `multipart/form-data` with an `audio` file → `{ text, ms }`. |
 | `/api/chat` | POST | `{ messages }` → `{ text, tools, messages, ms }`. |
 | `/api/speak` | POST | `{ text, voice_id, speed }` → `audio/mpeg` bytes. |
@@ -196,6 +196,22 @@ is not arithmetic — and need no network access or keys.
 **The banner says a key is missing.** The server has no `GROQ_API_KEY`. Locally
 that means `.env`; on Vercel it means the project's environment variables,
 followed by a redeploy.
+
+**The keys are set but every request fails.** Ask the app which one is wrong:
+
+```bash
+curl "http://localhost:8000/api/health?verify=1"
+```
+
+`keys` reports whether each value has the prefix its provider issues — Groq
+keys begin `gsk_`, ElevenLabs keys begin `sk_`, and putting each in the other's
+variable is an easy mistake to make. `verified` reports what the providers
+themselves say. Neither field exposes any part of a key.
+
+Note that `vercel env add` with no argument prompts for the *name* first, so
+pasting a key straight in creates a variable named after your key. Pass the
+name as an argument — `vercel env add GROQ_API_KEY production` — and it only
+asks for the value.
 
 **It cuts me off mid-sentence.** Raise *Auto-stop after silence* in the
 settings panel. 3 s suits a slower speaker.
