@@ -1,0 +1,6 @@
+# Extra dependencies for the terminal agent (python cli.py).
+# Install with:  pip install -r requirements.txt -r requirements-cli.txt
+sounddevice>=0.4.6
+numpy>=1.26
+python-dotenv>=1.0
+rich>=13.7
