@@ -49,14 +49,15 @@ class Settings:
     elevenlabs_api_key: str = ""
 
     asr_model: str = "whisper-large-v3-turbo"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
     tts_model: str = "eleven_flash_v2_5"
 
     voice_id: str = DEFAULT_VOICE_ID
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
     temperature: float = 0.6
-    max_tokens: int = 400
+    # Headroom for gpt-oss reasoning tokens, which count against this limit.
+    max_tokens: int = 700
     request_timeout: float = 45.0
 
     # Tool calls the agent may chain in a single turn before we force a
@@ -119,12 +120,12 @@ def get_settings() -> Settings:
         groq_api_key=_env("GROQ_API_KEY"),
         elevenlabs_api_key=_env("ELEVENLABS_API_KEY"),
         asr_model=_env("ASR_MODEL", "whisper-large-v3-turbo"),
-        llm_model=_env("LLM_MODEL", "llama-3.3-70b-versatile"),
+        llm_model=_env("LLM_MODEL", "openai/gpt-oss-120b"),
         tts_model=_env("TTS_MODEL", "eleven_flash_v2_5"),
         voice_id=_env("ELEVENLABS_VOICE_ID", DEFAULT_VOICE_ID),
         system_prompt=_env("SYSTEM_PROMPT", DEFAULT_SYSTEM_PROMPT),
         temperature=_float_env("LLM_TEMPERATURE", 0.6),
-        max_tokens=_int_env("LLM_MAX_TOKENS", 400),
+        max_tokens=_int_env("LLM_MAX_TOKENS", 700),
         request_timeout=_float_env("REQUEST_TIMEOUT", 45.0),
         allowed_origins=[o.strip() for o in origins.split(",") if o.strip()],
     )

@@ -111,6 +111,15 @@ async def health(verify: bool = False) -> dict[str, Any]:
     }
     if verify:
         payload["verified"] = await diagnostics.verify_keys(settings)
+        # The contract the portfolio's status check reads: ok, model, latency_ms from a real
+        # model call, not just an accepted key.
+        check = await diagnostics.verify_model(settings)
+        payload["ok"] = check["ok"]
+        payload["model"] = check["model"]
+        if "latency_ms" in check:
+            payload["latency_ms"] = check["latency_ms"]
+        if "detail" in check:
+            payload["model_detail"] = check["detail"]
     return payload
 
 

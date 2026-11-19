@@ -193,6 +193,10 @@ def _salvage_tool_call(failed_generation: str) -> dict[str, Any] | None:
     }
 
 
+def is_reasoning_model(model: str) -> bool:
+    return model.startswith("openai/gpt-oss")
+
+
 async def _complete(
     client: httpx.AsyncClient,
     history: list[dict[str, Any]],
@@ -206,6 +210,10 @@ async def _complete(
         "temperature": settings.temperature,
         "max_tokens": settings.max_tokens,
     }
+    if is_reasoning_model(settings.llm_model):
+        # gpt-oss thinks before answering and those tokens count against max_tokens;
+        # low effort keeps a spoken turn fast.
+        payload["reasoning_effort"] = "low"
     if offer_tools:
         payload["tools"] = TOOL_SCHEMAS
         payload["tool_choice"] = "auto"
@@ -233,8 +241,13 @@ async def _complete(
     except (KeyError, IndexError, ValueError) as exc:
         raise LLMError("The language model returned an unexpected response.") from exc
 
-    # Strip nulls so the message can be replayed back to the API verbatim.
-    return {key: value for key, value in message.items() if value is not None}
+    # Strip nulls, and the model's private reasoning, so the message can be replayed back
+    # to the API as part of the tool loop.
+    return {
+        key: value
+        for key, value in message.items()
+        if value is not None and key not in ("reasoning", "reasoning_content")
+    }
 
 
 async def _dispatch(call: dict[str, Any]) -> ToolInvocation:

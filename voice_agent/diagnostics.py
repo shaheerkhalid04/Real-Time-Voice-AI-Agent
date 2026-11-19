@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import time
+
 import httpx
 
 from .config import ELEVENLABS_BASE_URL, GROQ_BASE_URL, Settings
@@ -50,6 +52,34 @@ def _shape(key: str, expected: str, other: str) -> dict[str, Any]:
         "looks_right": False,
         "note": f"does not start with {expected} — check for a stray quote, space or truncation",
     }
+
+
+async def verify_model(settings: Settings) -> dict[str, Any]:
+    """A real, tiny call to the configured LLM. Unlike the key check, this fails when the
+    model itself is gone (Groq returns 404 model_not_found for a retired model)."""
+    if not settings.has_llm:
+        return {"ok": False, "model": settings.llm_model, "detail": "not configured"}
+    payload: dict[str, Any] = {
+        "model": settings.llm_model,
+        "max_tokens": 16,
+        "messages": [{"role": "user", "content": "Reply with OK."}],
+    }
+    if settings.llm_model.startswith("openai/gpt-oss"):
+        payload["reasoning_effort"] = "low"
+    started = time.perf_counter()
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                f"{GROQ_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {settings.groq_api_key}"},
+                json=payload,
+            )
+    except httpx.RequestError:
+        return {"ok": False, "model": settings.llm_model, "detail": "unreachable"}
+    latency_ms = round((time.perf_counter() - started) * 1000, 1)
+    if response.status_code != 200:
+        return {"ok": False, "model": settings.llm_model, "detail": f"HTTP {response.status_code}"}
+    return {"ok": True, "model": settings.llm_model, "latency_ms": latency_ms}
 
 
 async def verify_keys(settings: Settings) -> dict[str, str]:
