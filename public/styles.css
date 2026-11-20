@@ -1,5 +1,8 @@
 /* Real-Time Voice AI Agent — flat solid colours, system fonts, no gradients. */
 
+/* The hidden attribute must win over any class that sets display (the drawer, the banner). */
+[hidden] { display: none !important; }
+
 :root {
   --bg: #0d0e11;
   --surface: #14161a;
