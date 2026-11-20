@@ -274,7 +274,35 @@ def _with_system_prompt(
     messages: list[dict[str, Any]], system_prompt: str
 ) -> list[dict[str, Any]]:
     history = [dict(message) for message in messages if message.get("role") != "system"]
-    return [{"role": "system", "content": system_prompt}, *history]
+    return [{"role": "system", "content": system_prompt}, *_earlier_turns_as_text(history)]
+
+
+def _earlier_turns_as_text(history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Replay earlier turns as plain question and answer, without their tool traffic.
+
+    With an earlier turn's tool call and tool result in the history, gpt-oss on Groq
+    often runs its answer on: it repeats the figure ("1,387.5.1,387.5.") or starts a
+    new turn of its own ("You're welcome!"). Each earlier answer already carries what
+    its tools found, so only the current turn keeps its tool messages.
+    """
+    last_user = max(
+        (index for index, message in enumerate(history) if message.get("role") == "user"),
+        default=None,
+    )
+    if last_user is None:
+        return history
+
+    def is_text(message: dict[str, Any]) -> bool:
+        if message.get("role") == "user":
+            return True
+        return (
+            message.get("role") == "assistant"
+            and bool(message.get("content"))
+            and not message.get("tool_calls")
+        )
+
+    earlier = [message for message in history[:last_user] if is_text(message)]
+    return [*earlier, *history[last_user:]]
 
 
 def _failed_generation(response: httpx.Response) -> str | None:

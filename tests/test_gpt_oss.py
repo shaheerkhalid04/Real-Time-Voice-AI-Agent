@@ -68,3 +68,26 @@ def test_verify_model_reports_a_retired_model(monkeypatch):
     monkeypatch.setattr(diagnostics.httpx, "AsyncClient", Gone)
     result = asyncio.run(diagnostics.verify_model(settings()))
     assert result["ok"] is False and "latency_ms" not in result
+
+
+def test_earlier_turns_drop_their_tool_traffic():
+    tool_turn = [
+        {"role": "user", "content": "Weather in Lahore?"},
+        {"role": "assistant", "tool_calls": [{"id": "a", "type": "function", "function": {"name": "get_weather", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "a", "name": "get_weather", "content": "24 C, clear"},
+        {"role": "assistant", "content": "About 24 degrees and clear."},
+    ]
+    current = [
+        {"role": "user", "content": "What is 18500 times 0.075?"},
+        {"role": "assistant", "tool_calls": [{"id": "b", "type": "function", "function": {"name": "calculate", "arguments": "{}"}}]},
+        {"role": "tool", "tool_call_id": "b", "name": "calculate", "content": "1,387.5"},
+    ]
+    history = llm._with_system_prompt([*tool_turn, *current], "be brief")
+
+    assert [m["role"] for m in history] == ["system", "user", "assistant", "user", "assistant", "tool"]
+    assert history[2]["content"] == "About 24 degrees and clear."
+    assert history[3:] == current
+
+
+def test_history_without_a_user_turn_is_left_alone():
+    assert llm._earlier_turns_as_text([{"role": "assistant", "content": "hi"}]) == [{"role": "assistant", "content": "hi"}]
