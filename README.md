@@ -21,7 +21,7 @@ rather stay in the shell.
 
 - **Speech-to-text** — `whisper-large-v3-turbo` on Groq, reached over the
   OpenAI-compatible audio API.
-- **The agent** — `llama-3.3-70b-versatile` on Groq, with a tool-calling loop
+- **The agent:** `openai/gpt-oss-120b` on Groq (Groq retired `llama-3.3-70b-versatile` on 16 Aug 2026), with a tool-calling loop
   that resolves up to three rounds of calls before it has to answer in words.
 - **Text-to-speech** — ElevenLabs `eleven_flash_v2_5`, the low-latency model,
   because a reply that arrives late does not feel like a conversation.
@@ -106,10 +106,10 @@ Everything is read from the environment. Only the first one is required.
 | `ELEVENLABS_API_KEY` | — | Optional. Without it, replies use the browser voice. |
 | `ELEVENLABS_VOICE_ID` | `21m00Tcm4TlvDq8ikWAM` | Which voice answers. |
 | `ASR_MODEL` | `whisper-large-v3-turbo` | Speech-to-text model. |
-| `LLM_MODEL` | `llama-3.3-70b-versatile` | Agent model. |
+| `LLM_MODEL` | `openai/gpt-oss-120b` | Agent model. Health `?verify=1` makes a real call to it. |
 | `TTS_MODEL` | `eleven_flash_v2_5` | Speech model. |
 | `LLM_TEMPERATURE` | `0.6` | Higher is more varied. |
-| `LLM_MAX_TOKENS` | `400` | Spoken answers should be short. |
+| `LLM_MAX_TOKENS` | `700` | Spoken answers should be short. |
 | `REQUEST_TIMEOUT` | `45` | Seconds before an upstream call gives up. |
 | `SYSTEM_PROMPT` | see `config.py` | How the agent behaves. |
 | `ALLOWED_ORIGINS` | `*` | Comma-separated CORS allowlist. |
